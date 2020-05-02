@@ -14,7 +14,7 @@ Original file is located at
 import telebot
 from telebot import types
 
-TOKEN = "905448495:AAEtrGrGOKCHazkQ5SbpUMNi5OCjdiKRypQ"
+TOKEN = "your_token"
 MAIN_URL = 'https://api.telegram.org/bot{}'.format(TOKEN)
 #GROUP_ID = -1001387932680
 #GROUP_ID = -1001267139997
