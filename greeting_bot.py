@@ -8,7 +8,6 @@ from SQLighter import SQLighter
 from token import tokenator
 
 TOKEN = tokenator()
-MAIN_URL = 'https://api.telegram.org/bot{}'.format(TOKEN)
 
 
 bot = telebot.TeleBot(TOKEN)
