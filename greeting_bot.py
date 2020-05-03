@@ -3,9 +3,9 @@
 
 import telebot
 from telebot import types
-from foxBot import multi_threading
+from multi_threading import parallel_check_for_old_messages
 from SQLighter import SQLighter
-from token import tokenator
+from token_importer import tokenator
 
 TOKEN = tokenator()
 MAIN_URL = 'https://api.telegram.org/bot{}'.format(TOKEN)
@@ -24,12 +24,13 @@ def send_welcome(message):
     old_message = db_worker.read_by_chat_id(message.chat.id) #check for old messages in this chat
     if old_message:
         for message_row in old_message:
-            bot.delete_message(chat_id=message.chat.id, message_id=message_row[0])
+            print (bot.delete_message(chat_id=message.chat.id, message_id=message_row[0]))
+            db_worker.delete_row(chat_id=message.chat.id, message_id=message_row[0])
     db_worker.insert_message(chat_id=message.chat.id, message_id=re1.message_id, message_text=message.text)
     db_worker.insert_message(chat_id=message.chat.id, message_id=re2.message_id, message_text="I'm beautiful animation")
     db_worker.close()
         
 
 if __name__ == '__main__':
-  #parallel_check_for_old_messages(delta_time = 3, check_delay = 3)
+  parallel_check_for_old_messages(delta_time = 3, check_delay = 3)
   bot.polling()

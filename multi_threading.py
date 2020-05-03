@@ -24,7 +24,9 @@ def parallel_check_for_old_messages(delta_time = 3, check_delay = 3):
     db_worker = SQLighter("messages")
     time_diff = datetime.datetime.now() - datetime.timedelta(minutes = 3)
     time_diff = time_diff.strftime("%Y-%m-%d %H:%M:%S")
-    a = db_worker.check_old_messages(time_diff)
-    print (a)
+    print (time_diff)
     print ("checking for old messages")
+    a = db_worker.check_old_messages(delay_time)
+    if a:
+      print (a)
     db_worker.close()
