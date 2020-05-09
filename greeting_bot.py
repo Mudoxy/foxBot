@@ -3,7 +3,6 @@
 
 import telebot
 from telebot import types
-from multi_threading import parallel_check_for_old_messages
 from SQLighter import SQLighter
 from time import sleep, time
 from functools import wraps
@@ -32,16 +31,20 @@ def parallel_check_for_old_messages(worker_bot : telebot.TeleBot, delta_time = 3
     db_worker = SQLighter("messages")
     time_diff = datetime.datetime.now() - datetime.timedelta(minutes = delta_time)
     time_diff = time_diff.strftime("%Y-%m-%d %H:%M:%S") # Форматируем время, убирая милисек.
-    print ("time threshold - {}".format(time_diff))
-    print ("checking for old messages")
+    print ("checking for old messages before {}".format(time_diff))
     list_of_rows = db_worker.check_old_messages(time_diff)
     if list_of_rows:
-      print (list_of_rows)
+      print ("old messages:\n{}".format(list_of_rows))
       for row in list_of_rows:
+        try:
           message_id=int(row[0])
           chat_id=int(row[1])
           worker_bot.delete_message(chat_id=chat_id, message_id=message_id)
           db_worker.delete_row(chat_id=chat_id, message_id=message_id)
+        except:
+          print("Oops! An old message might have been deleted manually")
+          db_worker.delete_row(chat_id=chat_id, message_id=message_id)
+
     db_worker.close()
 
 TOKEN = tokenator()
@@ -60,14 +63,19 @@ def send_welcome(message):
     name = message.new_chat_member.first_name
     re1 = bot.send_message(message.chat.id, message_text1+name+message_text2)
     re2 = bot.send_animation(message.chat.id, animation=animation)
+    print("welcome messages sent to {} for {}".format(message.chat.id, name))
     db_worker = SQLighter("messages")
     old_message = db_worker.read_by_chat_id(message.chat.id) #check for old messages in this chat
     if old_message:
         for message_row in old_message:
-            print (bot.delete_message(chat_id=message.chat.id, message_id=message_row[0]))
+          try:
+            (bot.delete_message(chat_id=message.chat.id, message_id=message_row[0]))
             db_worker.delete_row(chat_id=message.chat.id, message_id=message_row[0])
+          except:
+            print("Oops! An old message might have been deleted manually")
+            db_worker.delete_row(chat_id=chat_id, message_id=message_id)
     db_worker.insert_message(chat_id=message.chat.id, message_id=re1.message_id, message_text=message.text)
-    db_worker.insert_message(chat_id=message.chat.id, message_id=re2.message_id, message_text="I'm beautiful animation")
+    db_worker.insert_message(chat_id=message.chat.id, message_id=re2.message_id, message_text="I'm an animation")
     db_worker.close()
         
 
