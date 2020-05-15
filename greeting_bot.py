@@ -78,7 +78,6 @@ def send_welcome(message):
 
 @bot.message_handler(commands=['setmessage']) #Здесь должен быть обработчик для команды "задать приветствие"
 def set_welcome(message):
-  #bot.send_message(message.chat.id, message.text)
   db_kicker = SQLever("greetings")
   word_sequence = message.text.split(' ', maxsplit=1)
   if len(word_sequence) == 1:
