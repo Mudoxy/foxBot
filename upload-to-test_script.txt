@@ -3,6 +3,6 @@ lcd "C:\Users\djdub\Projects\foxBot"
 cd testBot
 put greeting_bot.py
 put SQLighter.py
-put test-token_importer.py
-rename test-token_importer.py token_importer.py
+put token_test_importer.py
+rename token_test_importer.py token_importer.py
 exit
