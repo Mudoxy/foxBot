@@ -69,7 +69,7 @@ def send_welcome(message):
     if old_message:
         for message_row in old_message:
           try:
-            (bot.delete_message(chat_id=message.chat.id, message_id=message_row[0]))
+            (bot.delete_message(chat_id=message.chat.id, message_id=message_row[0])) #zero index in message row mean index for chat id
             db_worker.delete_row(chat_id=message.chat.id, message_id=message_row[0])
           except:
             print("Oops! An old message might have been deleted manually")
