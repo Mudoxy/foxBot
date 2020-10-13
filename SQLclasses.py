@@ -1,19 +1,27 @@
 import sqlite3
 import datetime
+import logging
 
 class SQLdb():
     def kwargs_to_str(self, kwargs):
         output = ""
-        for key in kwargs.keys():
-            output += str(key) + ' '
-            output += str(kwargs[key]) + ' '
+        kw_keys = list(kwargs.keys())
+        kw_len = len(kw_keys)
+        for i,key in enumerate(kw_keys):
+            output += str(kw_keys[i]) + ' '
+            if i == (kw_len - 1):
+                output += str(kwargs[key])
+            else:
+                output += str(kwargs[key]) + ', '
         return output
 
     def __init__(self, database_name="typical_db", **kwargs):
         self.connection = sqlite3.connect(database_name)
         self.name = database_name
         self.cursor = self.connection.cursor()
-        self.cursor.execute("CREATE TABLE IF NOT EXISTS {} ({});".format(self.name, self.kwargs_to_str(kwargs)))
+        query = "CREATE TABLE IF NOT EXISTS {} ({});".format(self.name, self.kwargs_to_str(kwargs))
+        logging.debug(query)
+        self.cursor.execute(query)
 
     def record_by_chat_id(self, chat_id: int):
         with self.connection:
@@ -55,7 +63,7 @@ class SQLmessages(SQLdb):
 
 class SQLchatsGreatings(SQLdb):
     def __init__(self, database_name="chats_ifno"):
-        super().__init__(database_name=database_name, chat_id="integer", animation_link="text", capcha="bool", begin_date="datetime")
+        super().__init__(database_name=database_name, chat_id="integer", animation_link="text", welcome_wessage="text", capcha="bool", begin_date="datetime")
     
     def delete_record(self, chat_id: int):
         """ Удаляем все строки с таким chat_id"""
