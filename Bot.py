@@ -38,7 +38,7 @@ async def permanent_check_for_old_messages(delta_time = 3, check_delay = 10):
                 await bot.kick_chat_member(chat_id=chat_id, user_id=user_id)
                 members_db.delete_row(chat_id=chat_id, message_id=message_id)
 
-TOKEN = "YOUR_TOKEN_HERE"
+TOKEN = "YOU_TOKEN_HERE"
 
 bot = aiogram.Bot(token=TOKEN)
 dp = aiogram.Dispatcher(bot)
@@ -90,5 +90,6 @@ async def welcome_and_unrestrict(query, callback_data: typing.Dict[str, str]):
         messages_db.close()
 
 if __name__ == "__main__":
-    asyncio.run(permanent_check_for_old_messages())
-    aiogram.executor.start_polling(dp, skip_updates=True)
+    ioloop = asyncio.get_event_loop()
+    tasks = [ioloop.create_task(permanent_check_for_old_messages()), aiogram.executor.start_polling(dp, skip_updates=True)]
+    ioloop.run_until_complete()
