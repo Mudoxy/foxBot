@@ -83,3 +83,22 @@ class SQLchatsGreatings(SQLdb):
                 print ("IT was DELETED")
             self.cursor.execute("INSERT INTO {}(chat_id, animation_link, capcha, begin_date) VALUES(?,?,?,?);".format(self.name), (chat_id, animation_link, capcha, current_time))
         return (last_record)
+
+class SQLmembers(SQLdb):
+    def __init__(self, database_name="members"):
+        super().__init__(database_name=database_name, chat_id="int", user_id="int", status="text", message_id="int", begin_date="datetime")
+
+    def add_member(self, chat_id:int, user_id:int, status:str, message_id:int):
+        current_time = datetime.datetime.now()
+        current_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
+        with self.connection:
+            self.cursor.execute("INSERT INTO {} (chat_id, message_id, user_id, status, begin_date) VALUES(?,?,?,?, ?);".format(self.name), (chat_id, message_id, user_id, status, current_time))
+
+    def delete_record(self, chat_id: int, user_id: int):
+        """ Удаляем строку с устаревшим сообщением """
+        with self.connection:
+            self.cursor.execute("DELETE FROM {} WHERE chat_id = '{}' AND user_id = '{}';".format(self.name, chat_id, user_id))
+
+    def check_old_messages(self, time_diff : str):
+        with self.connection:
+            return self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
