@@ -92,7 +92,7 @@ class SQLmembers(SQLdb):
         current_time = datetime.datetime.now()
         current_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
         with self.connection:
-            self.cursor.execute("INSERT INTO {} (chat_id, message_id, user_id, status, begin_date) VALUES(?,?,?,?, ?);".format(self.name), (chat_id, message_id, user_id, status, current_time))
+            self.cursor.execute("INSERT INTO {} (chat_id, message_id, user_id, status, begin_date) VALUES(?,?,?,?,?);".format(self.name), (chat_id, message_id, user_id, status, current_time))
 
     def delete_record(self, chat_id: int, user_id: int):
         """ Удаляем строку с устаревшим сообщением """

@@ -1,4 +1,19 @@
+# New version of welcome bot that migrated from pyTelegramBotApi -> aiogram
+# Bot restricts (admin rights needed) newcomer users and ask them to press button to show
+# That newcomer user are human and prevent bot spamming.
+
+# After button was pressed Bot send welocme message with chat info
+# Welcome message automatically deleted after %time_delta time
+# Inactive users whose not press antispam button kicked after %time_delt time
+
 from SQLclasses import SQLchatsGreatings, SQLmessages, SQLmembers
+# classes for interact with sqlite databases
+# chatGreatings - db with welcome animation and welcome message
+# TODO: only admin of channel should have rights for set welcome animation
+# messages - db with welcome messages to remember what messages to delete
+# members - db with newcomers to remember what inactive users to kick
+# TODO: db.read_by_chatid return [list of args] what is unreadable
+#       should change to dict {chat_id: value, message_id: value}
 
 import asyncio
 import logging
@@ -7,44 +22,51 @@ import typing
 import datetime
 from aiogram.utils.callback_data import CallbackData
 from aiogram.types import ContentType, InlineKeyboardButton, InlineKeyboardMarkup
+
 logging.basicConfig(level=logging.DEBUG)
+#Still in beta. Logging in debug mode
 
 button_click = CallbackData("Click","action")
 def get_keyboad():
     return InlineKeyboardMarkup().row(InlineKeyboardButton("Click", callback_data=button_click.new(action="done")))
 
 async def permanent_check_for_old_messages(delta_time = 3, check_delay = 10):
-    #delta_time in minutes
+    # infinite loop for check inactive newcome users and old messages
+    # delta_time in minutes
+    # TODO: hide time calculation inside db class. code are overburdened
+    # TODO: for each newcomer spawns new message. Possible deadlock here
     while True:
-        await asyncio.sleep(check_delay) #  Тут мы чего-то доолго ждем / вычисляем / etc
+        await asyncio.sleep(check_delay)
         messages_db = SQLmessages()
         members_db = SQLmembers()
         time_diff = datetime.datetime.now() - datetime.timedelta(minutes = delta_time)
-        time_diff = time_diff.strftime("%Y-%m-%d %H:%M:%S") # Форматируем время, убирая милисек.
-        print ("checking for old messages before {}".format(time_diff))
+        time_diff = time_diff.strftime("%Y-%m-%d %H:%M:%S") # Removing milisec part
+        logging.debug("checking for old messages before {}".format(time_diff))
         list_of_old_messages = messages_db.check_old_messages(time_diff)
         if list_of_old_messages:
-            print ("old messages:\n{}".format(list_of_old_messages))
+            logging.debug("old messages:\n{}".format(list_of_old_messages))
             for old_message in list_of_old_messages:
                 message_id, chat_id = int(old_message[0]), int(old_message[1])
                 await bot.delete_message(chat_id=chat_id, message_id=message_id)
                 messages_db.delete_row(chat_id=chat_id, message_id=message_id)
         list_of_idle_restricted_users = members_db.check_old_messages(time_diff)
         if list_of_idle_restricted_users:
-            print ("users_to_be_kicked:\n{}".format(list_of_idle_restricted_users))
+            logging.debug("users_to_be_kicked:\n{}".format(list_of_idle_restricted_users))
             for restr_user in list_of_idle_restricted_users:
                 chat_id, message_id, user_id = int(restr_user[0]), int(restr_user[1]), int(restr_user[2])
                 await bot.delete_message(chat_id=chat_id, message_id=message_id)
                 await bot.kick_chat_member(chat_id=chat_id, user_id=user_id)
                 members_db.delete_row(chat_id=chat_id, message_id=message_id)
 
-TOKEN = "YOU_TOKEN_HERE"
+TOKEN = "YOUR_TOKEN_HERE"
 
 bot = aiogram.Bot(token=TOKEN)
 dp = aiogram.Dispatcher(bot)
 
 @dp.message_handler(content_types=[ContentType.VIDEO, ContentType.ANIMATION, ContentType.DOCUMENT])
 async def set_animation(message):
+    # func for recieving animation from user and set it to welcome animation
+    #TODO: set welcome text too
     logging.debug("CATCHED ANIMATION")
     animation_db = SQLchatsGreatings()
     animation_db.update_record(chat_id=message.chat.id, animation_link=message.animation.file_id, capcha=True)
@@ -52,6 +74,8 @@ async def set_animation(message):
 
 @dp.message_handler(content_types=[ContentType.NEW_CHAT_MEMBERS])
 async def restrict_newcomers(message):
+    # func for handle newcomers. Spawn message with button on it to press
+    # restrict member and add member in members_db. If he remain inactive he will be kicked by permanent_check func
     new_members = message.new_chat_members
     members_db = SQLmembers()
     welcome_text = "Привет. Добро пожаловать в чат CHAT, будь добр - нажми на кнопочку и покажи что ты хороший человек"
@@ -63,6 +87,8 @@ async def restrict_newcomers(message):
 
 @dp.callback_query_handler(button_click.filter(action=["done"]))
 async def welcome_and_unrestrict(query, callback_data: typing.Dict[str, str]):
+    # handling pressing button. Unrestrict user and sending him welcome message
+    # welcome message will be deleted automatically after %delte_time time
     user = query["from"]
     message = query.message
     members_db = SQLmembers()
@@ -90,6 +116,7 @@ async def welcome_and_unrestrict(query, callback_data: typing.Dict[str, str]):
         messages_db.close()
 
 if __name__ == "__main__":
+    # add bot and permanent_check in parallel executing
     ioloop = asyncio.get_event_loop()
-    tasks = [ioloop.create_task(permanent_check_for_old_messages()), aiogram.executor.start_polling(dp, skip_updates=True)]
+    tasks = [aiogram.executor.start_polling(dp, skip_updates=True), ioloop.create_task(permanent_check_for_old_messages())]
     ioloop.run_until_complete()
