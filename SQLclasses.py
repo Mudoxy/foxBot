@@ -22,10 +22,17 @@ class SQLdb():
         query = "CREATE TABLE IF NOT EXISTS {} ({});".format(self.name, self.kwargs_to_str(kwargs))
         logging.debug(query)
         self.cursor.execute(query)
+        self.keys = kwargs.keys()
 
     def record_by_chat_id(self, chat_id: int):
         with self.connection:
-            result = self.cursor.execute("SELECT * FROM {} WHERE  chat_id = '{}';".format(self.name, chat_id)).fetchall()
+            query = "SELECT * FROM {} WHERE  chat_id = '{}';".format(self.name, chat_id)
+            logging.debug(query)
+            raw_result = self.cursor.execute(query).fetchall()
+            result = []
+            #converting (tuple of sql answer) to dict
+            for row in raw_result:
+                result.append(dict(zip(self.kwargs, row)))
             return (result)
 
     def __len__(self):
@@ -41,13 +48,14 @@ class SQLmessages(SQLdb):
     def __init__(self, database_name="messages"):
         super().__init__(database_name=database_name, message_id="integer", chat_id="integer", begin_date="datetime", message_text="text")
     
-    def read_by_chat_id(self, chat_id: int):
-        with self.connection:
-            return self.cursor.execute("SELECT * FROM {} WHERE  chat_id = '{}';".format(self.name, chat_id)).fetchall()
-
     def check_old_messages(self, time_diff : str):
         with self.connection:
-            return self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
+            raw_result = self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
+            result = []
+            #converting (tuple of sql answer) to dict
+            for row in raw_result:
+                result.append(dict(zip(self.keys, row)))
+            return (result)
 
     def insert_record(self, chat_id: int, message_id: int, message_text=""):
         with self.connection:
@@ -59,11 +67,12 @@ class SQLmessages(SQLdb):
     def delete_record(self, chat_id: int, message_id: int):
         """ Удаляем строку с устаревшим сообщением """
         with self.connection:
-            self.cursor.execute("DELETE FROM {} WHERE chat_id = '{}' AND message_id = '{}';".format(self.name, chat_id, message_id))
+            result = self.cursor.execute("DELETE FROM {} WHERE chat_id = '{}' AND message_id = '{}';".format(self.name, chat_id, message_id))
+        return (result)
 
 class SQLchatsGreatings(SQLdb):
-    def __init__(self, database_name="chats_ifno"):
-        super().__init__(database_name=database_name, chat_id="integer", animation_link="text", welcome_wessage="text", capcha="bool", begin_date="datetime")
+    def __init__(self, database_name="chats_info"):
+        super().__init__(database_name=database_name, chat_id="integer", animation_link="text", welcome_message="text", capcha="bool", begin_date="datetime")
     
     def delete_record(self, chat_id: int):
         """ Удаляем все строки с таким chat_id"""
@@ -71,17 +80,25 @@ class SQLchatsGreatings(SQLdb):
             result = self.cursor.execute("DELETE FROM {} WHERE chat_id = '{}';".format(self.name, chat_id))
             return (result)
 
-    def update_record(self, chat_id: int, animation_link: str, capcha: bool):
+    def update_record(self, chat_id: int, animation_link="", welcome_text="", capcha=None):
         with self.connection:
             current_time = datetime.datetime.now()
             current_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
             print ("UPDATING record for CHAT", chat_id)
             last_record = self.record_by_chat_id(chat_id)
+            logging.debug(last_record)
+            query = "INSERT INTO {} (chat_id, animation_link, welcome_message, capcha, begin_date) VALUES(?,?,?,?,?);".format(self.name)
             if len(last_record) > 0:
                 print ("THERE was record for", chat_id)
                 self.delete_record(chat_id)
                 print ("IT was DELETED")
-            self.cursor.execute("INSERT INTO {}(chat_id, animation_link, capcha, begin_date) VALUES(?,?,?,?);".format(self.name), (chat_id, animation_link, capcha, current_time))
+                if capcha == None:
+                    capcha_to_replace = last_record[0]["capcha"]
+                else:
+                    capcha_to_replace = capcha
+                self.cursor.execute(query, (chat_id, animation_link or last_record[0]["animation"], welcome_text or last_record[0]["text"], capcha_to_replace, current_time))
+            else:
+                self.cursor.execute(query, (chat_id, animation_link, welcome_text, capcha, current_time))
         return (last_record)
 
 class SQLmembers(SQLdb):
@@ -101,4 +118,9 @@ class SQLmembers(SQLdb):
 
     def check_old_messages(self, time_diff : str):
         with self.connection:
-            return self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
+            raw_result = self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
+            result = []
+            #converting (tuple of sql answer) to dict
+            for row in raw_result:
+                result.append(dict(zip(self.keys, row)))
+            return (result)
