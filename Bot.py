@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.DEBUG)
 KICKING = False
 REPORTING = True
 USERS_TO_REPORT = [410584052]
-TOKEN = "648522503:AAHjE3axKhIWKRHayFhGDfxJoGSUy9Bwzmk"
+TOKEN = "PUT YOUR TOKEN"
 bot = aiogram.Bot(token=TOKEN)
 dp = aiogram.Dispatcher(bot)
 

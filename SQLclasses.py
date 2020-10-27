@@ -116,7 +116,7 @@ class SQLmembers(SQLdb):
         with self.connection:
             self.cursor.execute("DELETE FROM {} WHERE chat_id = '{}' AND user_id = '{}';".format(self.name, chat_id, user_id))
 
-    def check_old_messages(self, time_diff : str):
+    def check_old_messages(self, time_diff : str, status="await"):
         with self.connection:
             raw_result = self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
             result = []
