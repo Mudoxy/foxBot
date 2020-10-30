@@ -116,9 +116,9 @@ class SQLmembers(SQLdb):
         with self.connection:
             self.cursor.execute("DELETE FROM {} WHERE chat_id = '{}' AND user_id = '{}';".format(self.name, chat_id, user_id))
 
-    def check_old_messages(self, time_diff : str, status="await"):
+    def check_old_messages(self, time_diff : str, status="awaiting"):
         with self.connection:
-            raw_result = self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
+            raw_result = self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}' AND status ='{}'".format(self.name, time_diff, status)).fetchall()
             result = []
             #converting (tuple of sql answer) to dict
             for row in raw_result:

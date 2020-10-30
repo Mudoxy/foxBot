@@ -23,15 +23,6 @@ from aiogram.types import ContentType, InlineKeyboardButton, InlineKeyboardMarku
 logging.basicConfig(level=logging.DEBUG)
 #Still in beta. Logging in debug mode
 
-KICKING = False
-REPORTING = True
-USERS_TO_REPORT = [410584052]
-TOKEN = "PUT YOUR TOKEN"
-bot = aiogram.Bot(token=TOKEN)
-dp = aiogram.Dispatcher(bot)
-
-dp.filters_factory.bind(MyFilter)
-
 from aiogram.dispatcher.filters import BoundFilter
 class MyFilter(BoundFilter):
     key = 'is_admin'
@@ -42,6 +33,15 @@ class MyFilter(BoundFilter):
     async def check(self, message):
         member = await bot.get_chat_member(chat_id=message.chat.id, message_id=message.from_user.id)
         return member.is_chat_admin()
+
+KICKING = False
+REPORTING = True
+USERS_TO_REPORT = [410584052]
+TOKEN = "648522503:AAHjE3axKhIWKRHayFhGDfxJoGSUy9Bwzmk"
+bot = aiogram.Bot(token=TOKEN)
+dp = aiogram.Dispatcher(bot)
+
+dp.filters_factory.bind(MyFilter)
 
 button_click = CallbackData("Click","action")
 def get_keyboad():
@@ -67,13 +67,14 @@ async def check_for_old_messages(time_diff):
 
 async def check_for_restricted_users(time_diff):
     members_db = SQLmembers()
-    list_of_idle_restricted_users = members_db.check_awaited_restrict(time_diff=time_diff, status="awaiting")
+    list_of_idle_restricted_users = members_db.check_old_messages(time_diff=time_diff, status="awaiting")
+    logging.debug(list_of_idle_restricted_users)
     if list_of_idle_restricted_users:
         logging.debug("USERS TO BE KICKED:\n{}".format(list_of_idle_restricted_users))
         for restr_user in list_of_idle_restricted_users:
             chat_id, message_id, user_id = int(restr_user["chat_id"]), int(restr_user["message_id"]), int(restr_user["user_id"])
-            members_db.delete_row(chat_id=chat_id, message_id=message_id)
-            members_db.add_member(chat_id=chat_id, message_id=message_id, status="restricted")
+            members_db.delete_record(chat_id=chat_id, user_id=user_id)
+            members_db.add_member(chat_id=chat_id, user_id=user_id, message_id=message_id, status="restricted")
             if KICKING:
                 try:
                     await bot.kick_chat_member(chat_id=chat_id, user_id=user_id)
@@ -122,17 +123,52 @@ async def set_text(message):
 async def restrict_newcomers(message):
     # func for handle newcomers. Spawn message with button on it to press
     # restrict member and add member in members_db. If he remain inactive he will be kicked by permanent_check func
-    new_members = message.new_chat_members
     members_db = SQLmembers()
     messages_db = SQLmessages()
+    old_message_in_this_chat = messages_db.record_by_chat_id(chat_id=message.chat.id)
+    for old_message in old_message_in_this_chat:
+        try:
+            await bot.delete_message(chat_id=old_message["chat_id"], message_id=old_message["message_id"])
+        except:
+            logging.debug("FAILED TO DELETE MESSAGE FROM TELEGRAM")
+        try:
+            messages_db.delete_record(chat_id=old_message["chat_id"], message_id=old_message["message_id"])
+        except:
+            logging.debug("FAILED TO DELETE MESSAGE FROM SQL DB")
     welcome_text = "Привет. Добро пожаловать в чат CHAT, будь добр - нажми на кнопочку и покажи что ты хороший человек"
     re1 = await message.answer(welcome_text.replace("CHAT", message.chat.title), reply_markup=get_keyboad())
+    new_members = message.new_chat_members
+    messages_db.insert_record(chat_id=message.chat.id, message_id=re1.message_id, message_text=re1.text)
     for member in new_members:
         members_db.add_member(chat_id=message.chat.id, user_id=member.id, status="awaiting", message_id=re1.message_id)
-        messages_db.insert_record(chat_id=message.chat.id, message_id=re1.message_id, message_text=re1.text)
         await bot.restrict_chat_member(chat_id=message.chat.id, user_id=member.id)
     members_db.close()
     messages_db.close()
+
+async def unrestrict_and_check_user(chat_id : int, user_id : int, message_id :int):
+    members_db = SQLmembers()
+    users = members_db.record_by_chat_id(chat_id)
+    users_id = [user["user_id"] for user in users] 
+    if user_id in users_id:
+        try:
+            await bot.restrict_chat_member(chat_id=chat_id, user_id=user_id, can_send_messages=True,
+                                            can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True)
+            logging.debug("USER {} UNRESTRICTED".format(user_id))
+            users_id.remove(user_id)
+        except:
+            logging.debug("CAN'T UNRESTRICT USER {}".format(user_id))
+        members_db.delete_record(chat_id=chat_id ,user_id=user_id)
+    else:
+        members_db.close()
+        return (-1)
+    if not users_id:  #if no users awaits unrestriction we can delete message for unrestriction
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=message_id)
+            logging.debug("OLD RESTRICTION MESSAGE DELETED")
+        except:
+            logging.debug("CAN'T DELETE OLD RESTRICTION MESSAGE")
+    members_db.close()
+    return (0)
 
 @dp.callback_query_handler(button_click.filter(action=["done"]))
 async def welcome_and_unrestrict(query, callback_data: typing.Dict[str, str]):
@@ -140,21 +176,21 @@ async def welcome_and_unrestrict(query, callback_data: typing.Dict[str, str]):
     # welcome message will be deleted automatically after %delte_time time
     user = query["from"]
     message = query.message
-    members_db = SQLmembers()
     await query.answer()
-    members_db.delete_record(chat_id=message.chat.id, user_id=user.id)
-    logging.debug("DELETING MESSAGE")
-    await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
-    logging.debug("UNRESTRICTING USER")
-    await bot.restrict_chat_member(chat_id=message.chat.id, user_id=user.id, can_send_messages=True,
-                                    can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True)
-    members_db.close()
-
+    await unrestrict_and_check_user(chat_id=message.chat.id, user_id=user.id, message_id=message.message_id)
+    
     messages_db = SQLmessages()
     welcome_text = "Привет NAME, рады тебя видеть"
-    #TODO take welcome messae from DB
+    #TODO take welcome message from DB
     re1 = await bot.send_message(message.chat.id, welcome_text.replace("NAME", user.first_name))
     messages_db.insert_record(chat_id=message.chat.id, message_id=re1.message_id)
+    animation_db = SQLchatsGreatings()
+    try:
+        animation = animation_db.record_by_chat_id(message.chat.id)[0]["animation"] #first (and only one) row, second argument is file name
+        re2 = await bot.send_animation(message.chat.id, animation=animation)
+        messages_db.insert_record(chat_id=message.chat.id, message_id=re2.message_id)
+    except:
+        logging.debug("FAILED TO SEND ANIMATION")
 
     old_messages = messages_db.record_by_chat_id(message.chat.id)
     if old_messages:
@@ -164,19 +200,14 @@ async def welcome_and_unrestrict(query, callback_data: typing.Dict[str, str]):
             messages_db.delete_record(chat_id=message_row["chat_id"], message_id=message_row["message_id"])
         messages_db.insert_record(chat_id=message.chat.id, message_id=re1.message_id, message_text=message.text)
         messages_db.insert_record(chat_id=message.chat.id, message_id=re2.message_id, message_text="I'm an animation")
-
-    animation_db = SQLchatsGreatings()
-    try:
-        animation = animation_db.record_by_chat_id(message.chat.id)[0]["animation"] #first (and only one) row, second argument is file name
-        re2 = await bot.send_animation(message.chat.id, animation=animation)
-        messages_db.insert_record(chat_id=message.chat.id, message_id=re2.message_id)
-    except:
-        logging.debug("FAILED TO SEND ANIMATION")
     messages_db.close()
     animation_db.close()
-
+    
 if __name__ == "__main__":
     # add bot and permanent_check in parallel executing
     ioloop = asyncio.get_event_loop()
-    tasks = [ioloop.create_task(permanent_check_for_old_messages()), ioloop.create_task(aiogram.executor.start_polling(dp, skip_updates=True))]
+    my_tasks = []
+    my_tasks.append(ioloop.create_task(permanent_check_for_old_messages()))
+    my_tasks.append(ioloop.create_task(aiogram.executor.start_polling(dp, skip_updates=True)))
+    logging.debug(my_tasks)
     ioloop.run_forever()
