@@ -1,0 +1,2 @@
+aiogram=2.10.1
+sqlite=3.33.0

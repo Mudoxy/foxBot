@@ -32,7 +32,7 @@ class SQLdb():
             result = []
             #converting (tuple of sql answer) to dict
             for row in raw_result:
-                result.append(dict(zip(self.kwargs, row)))
+                result.append(dict(zip(self.keys, row)))
             return (result)
 
     def __len__(self):
@@ -46,8 +46,20 @@ class SQLdb():
         
 class SQLmessages(SQLdb):
     def __init__(self, database_name="messages"):
-        super().__init__(database_name=database_name, message_id="integer", chat_id="integer", begin_date="datetime", message_text="text")
+        super().__init__(database_name=database_name, message_id="integer", chat_id="integer",
+                        begin_date="datetime", message_text="text", message_type="text")
     
+    def record_by_type(self, chat_id : int, message_type : str):
+        with self.connection:
+            query = "SELECT * FROM {} WHERE  chat_id = '{}' AND message_type = '{}';".format(self.name, chat_id, message_type)
+            logging.debug(query)
+            raw_result = self.cursor.execute(query).fetchall()
+            result = []
+            #converting (tuple of sql answer) to dict
+            for row in raw_result:
+                result.append(dict(zip(self.keys, row)))
+            return (result)
+
     def check_old_messages(self, time_diff : str):
         with self.connection:
             raw_result = self.cursor.execute("SELECT * FROM {} WHERE begin_date < '{}'".format(self.name, time_diff)).fetchall()
@@ -57,11 +69,12 @@ class SQLmessages(SQLdb):
                 result.append(dict(zip(self.keys, row)))
             return (result)
 
-    def insert_record(self, chat_id: int, message_id: int, message_text=""):
+    def insert_record(self, chat_id: int, message_id: int, message_text="", message_type="default"):
         with self.connection:
             current_time = datetime.datetime.now()
             current_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
-            self.cursor.execute("INSERT INTO {}(chat_id, message_id, message_text, begin_date) VALUES(?,?,?,?);".format(self.name), (chat_id, message_id, message_text, current_time))
+            self.cursor.execute("INSERT INTO {}(chat_id, message_id, message_text, begin_date, message_type) VALUES(?,?,?,?,?);".format(self.name),
+                                (chat_id, message_id, message_text, current_time, message_type))
         return (0)
 
     def delete_record(self, chat_id: int, message_id: int):
@@ -71,7 +84,7 @@ class SQLmessages(SQLdb):
         return (result)
 
 class SQLchatsGreatings(SQLdb):
-    def __init__(self, database_name="chats_info"):
+    def __init__(self, database_name="welcome_animations"):
         super().__init__(database_name=database_name, chat_id="integer", animation_link="text", welcome_message="text", capcha="bool", begin_date="datetime")
     
     def delete_record(self, chat_id: int):
@@ -96,7 +109,9 @@ class SQLchatsGreatings(SQLdb):
                     capcha_to_replace = last_record[0]["capcha"]
                 else:
                     capcha_to_replace = capcha
-                self.cursor.execute(query, (chat_id, animation_link or last_record[0]["animation"], welcome_text or last_record[0]["text"], capcha_to_replace, current_time))
+                # logging.debug(last_record)
+                self.cursor.execute(query, (chat_id, animation_link or last_record[0]["animation_link"], welcome_text or last_record[0]["welcome_message"],
+                                    capcha_to_replace, current_time))
             else:
                 self.cursor.execute(query, (chat_id, animation_link, welcome_text, capcha, current_time))
         return (last_record)
